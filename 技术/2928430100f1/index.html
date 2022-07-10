@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 6.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/blog/images/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/blog/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/blog/images/favicon-16x16.png">
+  <link rel="mask-icon" href="/blog/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/blog/css/main.css">
+
+
+<link rel="stylesheet" href="/blog/lib/font-awesome/css/all.min.css">
+  <link rel="stylesheet" href="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.css">
+  <link rel="stylesheet" href="/blog/lib/pace/pace-theme-minimal.min.css">
+  <script src="/blog/lib/pace/pace.min.js"></script>
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"fadedflower.github.io","root":"/blog/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":false,"style":"mac"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#1f4f89","save":"auto"},"fancybox":true,"mediumzoom":false,"lazyload":false,"pangu":true,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="前言最近，我正在研究如何配置反向代理服务端，使得我能够访问一些原先访问不了的网站，如Pixiv、Wikipedia、Patreon等。而在我研究过程中，我发现了反向代理技术并不是整个过程的关键，真正的核心技术则是Domain Fronting。在阅读了一篇名为 A 101 on Domain Fronting 的文章后，我打算从几个概念入手，谈谈我对Domain Fronting的简单理解，如有什">
+<meta property="og:type" content="article">
+<meta property="og:title" content="技术介绍：谈谈我对Domain Fronting的简单理解">
+<meta property="og:url" content="https://fadedflower.github.io/blog/%E6%8A%80%E6%9C%AF/2928430100f1/index.html">
+<meta property="og:site_name" content="WinTP的技术小站">
+<meta property="og:description" content="前言最近，我正在研究如何配置反向代理服务端，使得我能够访问一些原先访问不了的网站，如Pixiv、Wikipedia、Patreon等。而在我研究过程中，我发现了反向代理技术并不是整个过程的关键，真正的核心技术则是Domain Fronting。在阅读了一篇名为 A 101 on Domain Fronting 的文章后，我打算从几个概念入手，谈谈我对Domain Fronting的简单理解，如有什">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://fadedflower.github.io/blog/images/DomainFronting/ip-address-home.png">
+<meta property="og:image" content="https://fadedflower.github.io/blog/images/DomainFronting/ip-address-pixiv.png">
+<meta property="og:image" content="https://fadedflower.github.io/blog/images/DomainFronting/ping-pixiv.png">
+<meta property="og:image" content="https://fadedflower.github.io/blog/images/DomainFronting/ping-pixiv-ip.png">
+<meta property="og:image" content="https://fadedflower.github.io/blog/images/DomainFronting/port-home.png">
+<meta property="og:image" content="https://fadedflower.github.io/blog/images/DomainFronting/port-result.png">
+<meta property="article:published_time" content="2022-07-10T07:50:32.000Z">
+<meta property="article:modified_time" content="2022-07-10T13:11:45.163Z">
+<meta property="article:author" content="WinTP">
+<meta property="article:tag" content="WinTP 技术 计算机 博客">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://fadedflower.github.io/blog/images/DomainFronting/ip-address-home.png">
+
+<link rel="canonical" href="https://fadedflower.github.io/blog/%E6%8A%80%E6%9C%AF/2928430100f1/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>技术介绍：谈谈我对Domain Fronting的简单理解 | WinTP的技术小站</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/blog/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">WinTP的技术小站</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+      <p class="site-subtitle" itemprop="description">一位技术爱好者的网站</p>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+        <i class="fa fa-search fa-fw fa-lg"></i>
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/blog/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/blog/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>归档</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/blog/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/blog/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+      <li class="menu-item">
+        <iframe frameborder="no" border="0" marginwidth="0" marginheight="0" width=298 height=52 src="//music.163.com/outchain/player?type=0&id=7284977942&auto=1&height=32"></iframe>
+      </li>
+  </ul>
+</nav>
+
+
+
+  <div class="search-pop-overlay">
+    <div class="popup search-popup">
+        <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result">
+  <div id="no-result">
+    <i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>
+  </div>
+</div>
+
+    </div>
+  </div>
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+  <div class="reading-progress-bar"></div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="https://fadedflower.github.io/blog/%E6%8A%80%E6%9C%AF/2928430100f1/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/blog/images/avatar.png">
+      <meta itemprop="name" content="WinTP">
+      <meta itemprop="description" content="分享个人平日里了解到的技术知识以及其他趣闻">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="WinTP的技术小站">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          技术介绍：谈谈我对Domain Fronting的简单理解
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2022-07-10 15:50:32" itemprop="dateCreated datePublished" datetime="2022-07-10T15:50:32+08:00">2022-07-10</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/blog/categories/%E6%8A%80%E6%9C%AF/" itemprop="url" rel="index"><span itemprop="name">技术</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>最近，我正在研究如何配置反向代理服务端，使得我能够访问一些原先访问不了的网站，如Pixiv、Wikipedia、Patreon等。而在我研究过程中，我发现了反向代理技术并不是整个过程的关键，真正的核心技术则是Domain Fronting。在阅读了一篇名为 <a target="_blank" rel="noopener" href="https://digi.ninja/blog/domain_fronting.php">A 101 on Domain Fronting</a> 的文章后，我打算从几个概念入手，谈谈我对Domain Fronting的简单理解，如有什么问题，还望指出。</p>
+<p>需要注意的是，本文有一定的阅读门槛，需要读者了解一些基本的网络知识，如HTTP的工作原理，TLS握手的过程，对网络通信模型有一个大致的概念。</p>
+<span id="more"></span>
+
+<h1 id="网站为什么无法正常访问"><a href="#网站为什么无法正常访问" class="headerlink" title="网站为什么无法正常访问"></a>网站为什么无法正常访问</h1><p>我们平常在访问互联网的时候，常常会遇到几个即使网络连接正常也照样无法访问的网站，这个时候我们经常会说“这个网站可能是被墙了”。而网站被墙的手段其实并不单一，分为几种情况，常见的有下面这三种：</p>
+<ol>
+<li><strong>DNS污染</strong>，当你输入的域名被送入DNS服务器进行查询后，DNS服务器返回了错误的IP地址，导致网站无法正常访问，著名的Github和艺术网站DeviantArt就属于这种情况。这种情况的解决方法比较简单，要么更换DNS服务器，要么找到域名所对应的正确IP地址，修改HOST文件强制域名解析为正确的IP地址。</li>
+<li><strong>SNI审查</strong>，Pixiv、Wikipedia、Bandcamp等网站都属于这种情况，这是本文所讨论的重点情况，将在下文进行具体阐述。</li>
+<li><strong>IP封禁</strong>，Youtube、Twitter、Facebook等网站都属于这种情况，这种情况下只能借助境外第三方服务器建立代理来正常访问。</li>
+</ol>
+<h1 id="SNI审查"><a href="#SNI审查" class="headerlink" title="SNI审查"></a>SNI审查</h1><p>在过去的HTTP时代，在IPv4协议下的IP地址资源是相当有限的，为了充分利用IP资源，网站建设者往往选择在同一个IP地址上承载多个网站。为了区分对不同网站的请求，在发送HTTP请求的时候，浏览器会设置请求头中的“Host”header为请求的域名，这样，服务器收到请求后，会根据“Host”header的值来决定返回哪一个网站的内容。</p>
+<p>而到了现在的HTTPS时代，网站建设者会给每一个网站分别申请一个数字证书以建立TCP安全连接。这样就带来了一个新的问题，在进行TLS握手的时候，服务器并不知道请求的域名到底是什么，所以它只能使用默认的数字证书来建立安全连接，而不是使用域名特有的数字证书。为了解决这一问题，人们引入了<strong>SNI</strong>（Server Name Indication）以对TLS协议进行扩展，其位于客户端发送的Client Hello数据包，在进行TLS握手的时候，客户端通过SNI将域名信息告诉服务器，这样服务器就能选用恰当的数字证书来建立安全连接了。</p>
+<p>而SNI审查就是一种审查TCP安全连接的方法，当审查者截获TLS握手的Client Hello数据包，发现SNI里的域名信息位于名单中，他会阻止TLS握手的正常进行，导致网站无法正常访问。</p>
+<h1 id="Domain-Fronting"><a href="#Domain-Fronting" class="headerlink" title="Domain Fronting"></a>Domain Fronting</h1><p>Domain Fronting是一种绕过SNI审查的欺骗技术。当我们试图建立HTTPS连接以获取某一服务器上某一受到SNI审查影响的网站的内容时，我们就在TLS握手的时候不提供SNI（相当于直接访问服务器的IP地址），或者提供一个该服务器承载的另一个未受到SNI审查影响的网站的SNI。而在成功建立HTTPS连接以后，我们把HTTP请求头中的“Host”header设置为受到SNI审查影响的网站域名。这样一来，我们就绕过了SNI审查并获得了我们想要的网站内容。</p>
+<h1 id="为什么这么做是可行的"><a href="#为什么这么做是可行的" class="headerlink" title="为什么这么做是可行的"></a>为什么这么做是可行的</h1><p>首先，不管SNI如何，只要我们完成了TLS握手，TCP安全连接就已经成功建立了，因此，只要SNI里的域名信息不在审查名单里，我们就可以建立TCP安全连接。</p>
+<p>其次，HTTP协议属于应用层协议，因此，在传输的时候，HTTP请求及响应都通过TLS协议进行了加密，审查者无法得知“Host”header的值是否在名单之中，他便无法对数据包进行拦截。也正因为HTTP协议属于应用层协议，所以服务器判断HTTP请求的域名也只能依靠“Host”header，这样一来，服务器也返回了我们想要的网站内容。</p>
+<h1 id="在反向代理服务端中的应用——以Nginx为例"><a href="#在反向代理服务端中的应用——以Nginx为例" class="headerlink" title="在反向代理服务端中的应用——以Nginx为例"></a>在反向代理服务端中的应用——以Nginx为例</h1><p>下面简单介绍一下如何通过反向代理服务端来应用该技术绕过SNI审查。</p>
+<p>首先，为了让浏览器能正常建立TCP安全连接，我们需要让反向代理服务端有自己的数字证书，最简单的方法就是生成自签发的根CA证书及用该根CA证书签发的数字证书，然后配置服务端使用该证书。另外，由于Windows并不信任未知的根CA证书，所以必须要安装根CA证书至信任区。</p>
+<p>接着，配置服务端，使其根据域名转发数据包到目标网站的IP，同时设置“Host”header以进行Domain Fronting。</p>
+<p>例如，下面这个配置：</p>
+<figure class="highlight nginx"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="section">server</span> &#123;</span><br><span class="line">    <span class="attribute">listen</span> <span class="number">443</span> ssl;</span><br><span class="line">    <span class="attribute">server_name</span> nyaa.si;</span><br><span class="line">    <span class="attribute">server_name</span> www.nyaa.si;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="attribute">ssl_certificate</span> ca/proxy.crt;</span><br><span class="line">    <span class="attribute">ssl_certificate_key</span> ca/proxy.key;</span><br><span class="line"></span><br><span class="line">    <span class="section">location</span> / &#123;</span><br><span class="line">        <span class="attribute">proxy_pass</span> https://185.178.208.182/;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> Host <span class="variable">$http_host</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-Forwarded-For <span class="variable">$proxy_add_x_forwarded_for</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> X-Real_IP <span class="variable">$remote_addr</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> User-Agent <span class="variable">$http_user_agent</span>;</span><br><span class="line">        <span class="attribute">proxy_set_header</span> Accept-Encoding <span class="string">&#x27;&#x27;</span>;</span><br><span class="line">        <span class="attribute">proxy_buffering</span> <span class="literal">off</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>意思是，所有访问带有 <code>nyaa.si</code> 和 <code>www.nyaa.si</code> 域名的网站的数据包都被转发到对应的IP <code>185.178.208.182</code> ，同时设置“Host”header以及其他必要的header。</p>
+<p>最后，我们只需要编辑HOST文件，使需要访问的网站域名强制解析为回环地址 <code>127.0.0.1</code> 即可，这样的话数据包就能经过反向代理服务端了。</p>
+<h1 id="附录：如何判断一个网站是否受到了SNI审查"><a href="#附录：如何判断一个网站是否受到了SNI审查" class="headerlink" title="附录：如何判断一个网站是否受到了SNI审查"></a>附录：如何判断一个网站是否受到了SNI审查</h1><p>如果在网站域名解析正确的情况下，网站仍然不能正常访问，但是网站的IP地址能够Ping通，并且网站服务器的443端口（HTTPS服务端口）经过测试是打开的，就说明该网站确实受到了SNI审查，具体操作步骤如下（以Pixiv为例）：</p>
+<p>首先，确认网站没有受到DNS污染，也就是域名解析出来的IP地址是正确的，如果有，就先解决污染，再进行测试。<br>先获取网站对应的正确IP地址，打开<a target="_blank" rel="noopener" href="https://ipaddress.com/">ipaddress.com</a>，出现下面这个页面：</p>
+<img src="/blog/images/DomainFronting/ip-address-home.png" class="" title="IPAddress首页">
+
+<p>在搜索框中输入 <code>pixiv.net</code> ，经过搜索后找到下面这个页面：</p>
+<img src="/blog/images/DomainFronting/ip-address-pixiv.png" class="" title="IPAddress搜索结果">
+
+<p>这里记录的就是 <code>pixiv.net</code> 域名对应的正确IP地址，接着在命令提示符下输入 <code>ping pixiv.net</code> ，得到下面这个结果：</p>
+<img src="/blog/images/DomainFronting/ping-pixiv.png" class="" title="Ping命令执行结果">
+
+<p>可以看到，命令解析出来的IP地址和正确的IP地址并不一致，说明该网站首先受到了DNS污染，要先解决这个问题再进行测试，在HOST文件中添加 <code>210.140.92.180 pixiv.net</code> 强制域名解析为正确的IP地址</p>
+<p>尝试打开这个网站，发现并不能打开，说明该网站不能访问的根本原因并不是DNS污染。</p>
+<p>接着，检查网站的IP地址是否能够Ping通，网站服务器的443端口（HTTPS服务端口）是不是打开的。<br>在命令提示符下输入 <code>ping 210.140.92.180</code> ，得到下面这个结果：</p>
+<img src="/blog/images/DomainFronting/ping-pixiv-ip.png" class="" title="Ping命令执行结果">
+
+<p>说明IP地址并没有受到封禁，再打开<a target="_blank" rel="noopener" href="https://tool.chinaz.com/port">tool.chinaz.com&#x2F;port</a>，出现下面这个页面：</p>
+<img src="/blog/images/DomainFronting/port-home.png" class="" title="端口扫描页面">
+
+<p>在IP地址处输入 <code>210.140.92.180</code> ，端口号处输入 <code>443</code> ，得到下面这个结果：</p>
+<img src="/blog/images/DomainFronting/port-result.png" class="" title="端口扫描结果">
+
+<p>说明HTTPS服务端口也是打开的，这就证明了该网站受到了SNI审查，可以尝试使用Domain Fronting技术绕过。</p>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/blog/%E5%AE%9E%E7%94%A8%E5%B7%A5%E5%85%B7/1ff4369c85d7/" rel="prev" title="实用工具介绍：waifu2x">
+      <i class="fa fa-chevron-left"></i> 实用工具介绍：waifu2x
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%89%8D%E8%A8%80"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E7%BD%91%E7%AB%99%E4%B8%BA%E4%BB%80%E4%B9%88%E6%97%A0%E6%B3%95%E6%AD%A3%E5%B8%B8%E8%AE%BF%E9%97%AE"><span class="nav-number">2.</span> <span class="nav-text">网站为什么无法正常访问</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#SNI%E5%AE%A1%E6%9F%A5"><span class="nav-number">3.</span> <span class="nav-text">SNI审查</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Domain-Fronting"><span class="nav-number">4.</span> <span class="nav-text">Domain Fronting</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BF%99%E4%B9%88%E5%81%9A%E6%98%AF%E5%8F%AF%E8%A1%8C%E7%9A%84"><span class="nav-number">5.</span> <span class="nav-text">为什么这么做是可行的</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E5%9C%A8%E5%8F%8D%E5%90%91%E4%BB%A3%E7%90%86%E6%9C%8D%E5%8A%A1%E7%AB%AF%E4%B8%AD%E7%9A%84%E5%BA%94%E7%94%A8%E2%80%94%E2%80%94%E4%BB%A5Nginx%E4%B8%BA%E4%BE%8B"><span class="nav-number">6.</span> <span class="nav-text">在反向代理服务端中的应用——以Nginx为例</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#%E9%99%84%E5%BD%95%EF%BC%9A%E5%A6%82%E4%BD%95%E5%88%A4%E6%96%AD%E4%B8%80%E4%B8%AA%E7%BD%91%E7%AB%99%E6%98%AF%E5%90%A6%E5%8F%97%E5%88%B0%E4%BA%86SNI%E5%AE%A1%E6%9F%A5"><span class="nav-number">7.</span> <span class="nav-text">附录：如何判断一个网站是否受到了SNI审查</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="WinTP"
+      src="/blog/images/avatar.png">
+  <p class="site-author-name" itemprop="name">WinTP</p>
+  <div class="site-description" itemprop="description">分享个人平日里了解到的技术知识以及其他趣闻</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/blog/archives/">
+        
+          <span class="site-state-item-count">3</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/blog/categories/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="https://space.bilibili.com/12309490" title="Bilibili → https:&#x2F;&#x2F;space.bilibili.com&#x2F;12309490" rel="noopener" target="_blank"><i class="fa-brands fa-bilibili fa-fw"></i>Bilibili</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="https://github.com/fadedflower" title="GitHub → https:&#x2F;&#x2F;github.com&#x2F;fadedflower" rel="noopener" target="_blank"><i class="fab fa-github fa-fw"></i>GitHub</a>
+      </span>
+      <span class="links-of-author-item">
+        <a href="mailto:1789016472@qq.com" title="E-Mail → mailto:1789016472@qq.com" rel="noopener" target="_blank"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+  <div class="cc-license motion-element" itemprop="license">
+    <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.zh" class="cc-opacity" rel="noopener" target="_blank"><img src="/blog/images/cc-by-sa.svg" alt="Creative Commons"></a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2022</span>
+  <span class="with-love">
+    <i class="fa-solid fa-gamepad"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">WinTP</span>
+</div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script size="300" alpha="0.4" zIndex="-1" src="/blog/lib/canvas-ribbon/canvas-ribbon.js"></script>
+  <script src="/blog/lib/anime.min.js"></script>
+  <script src="/blog/lib/pjax/pjax.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script src="//cdn.jsdelivr.net/gh/fancyapps/fancybox@3/dist/jquery.fancybox.min.js"></script>
+  <script src="//cdn.jsdelivr.net/npm/pangu@4/dist/browser/pangu.min.js"></script>
+  <script src="/blog/lib/velocity/velocity.min.js"></script>
+  <script src="/blog/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/blog/js/utils.js"></script>
+
+<script src="/blog/js/motion.js"></script>
+
+
+<script src="/blog/js/schemes/muse.js"></script>
+
+
+<script src="/blog/js/next-boot.js"></script>
+
+  <script>
+var pjax = new Pjax({
+  selectors: [
+    'head title',
+    '#page-configurations',
+    '.content-wrap',
+    '.post-toc-wrap',
+    '.languages',
+    '#pjax'
+  ],
+  switches: {
+    '.post-toc-wrap': Pjax.switches.innerHTML
+  },
+  analytics: false,
+  cacheBust: false,
+  scrollTo : !CONFIG.bookmark.enable
+});
+
+window.addEventListener('pjax:success', () => {
+  document.querySelectorAll('script[data-pjax], script#page-configurations, #pjax script').forEach(element => {
+    var code = element.text || element.textContent || element.innerHTML || '';
+    var parent = element.parentNode;
+    parent.removeChild(element);
+    var script = document.createElement('script');
+    if (element.id) {
+      script.id = element.id;
+    }
+    if (element.className) {
+      script.className = element.className;
+    }
+    if (element.type) {
+      script.type = element.type;
+    }
+    if (element.src) {
+      script.src = element.src;
+      // Force synchronous loading of peripheral JS.
+      script.async = false;
+    }
+    if (element.dataset.pjax !== undefined) {
+      script.dataset.pjax = '';
+    }
+    if (code !== '') {
+      script.appendChild(document.createTextNode(code));
+    }
+    parent.appendChild(script);
+  });
+  NexT.boot.refresh();
+  // Define Motion Sequence & Bootstrap Motion.
+  if (CONFIG.motion.enable) {
+    NexT.motion.integrator
+      .init()
+      .add(NexT.motion.middleWares.subMenu)
+      .add(NexT.motion.middleWares.postList)
+      .bootstrap();
+  }
+  NexT.utils.updateSidebarPosition();
+});
+</script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/blog/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+    <div id="pjax">
+  
+
+  
+
+    </div>
+</body>
+</html>
